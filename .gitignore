@@ -1,10 +1,31 @@
-# Python-generated files
+# Python / Virtual environments
 __pycache__/
-*.py[oc]
+*.py[codz]
+*$py.class
+*.so
+.venv/
+env/
+venv/
+
+# PyCharm / IDEs
+.idea/
+.vscode/
+
+# Build & Distribution
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+*.egg
 
-# Virtual environments
-.venv
+# Data / Datasets (optional: einkommentieren, falls CSVs nicht auf GitHub sollen)
+# Datasets/*.csv
+
+# Temporary / Cache files
+.pytest_cache/
+.coverage
+.ruff_cache/
+*.log
+
+# Environment variables
+.env
