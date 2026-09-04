@@ -29,3 +29,9 @@ wheels/
 
 # Environment variables
 .env
+
+# PyCharm Einstellungen
+.idea/
+
+# Datensätze / CSV-Dateien
+Datasets/*.csv
