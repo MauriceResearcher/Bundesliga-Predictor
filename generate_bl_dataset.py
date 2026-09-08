@@ -60,8 +60,22 @@ def create_dataframe(season, matchday):
     df = pd.DataFrame(results)
     return df
 
-df_spieltag1 = create_dataframe(2020, 1)
-print(df_spieltag1)
+#df_spieltag1 = create_dataframe(2020, 1)
+#print(df_spieltag1)
 
+
+all_seasons_dfs = []
+
+for season in range(2020, 2025):  # Lädt 2020, 2021, 2022, 2023, 2024
+    for matchday in range(1, 35):
+        ds = create_dataframe(season, matchday)
+        if not ds.empty:
+            all_seasons_dfs.append(ds)
+
+full_dataset = pd.concat(all_seasons_dfs, ignore_index=True)
+full_dataset.to_csv(
+    r"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_all_seasons.csv",
+    index=False,
+)
 
 

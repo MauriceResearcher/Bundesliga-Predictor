@@ -79,14 +79,25 @@ def compute_points(df, team_id):
 
     return total_points
 
-def compute_form(df, iterations, curr_matchday, team_id, match_type=Types.BOTH):
-    past_matches = df[df["matchday"] < curr_matchday].copy()
+def compute_form(
+    df, iterations, curr_season, curr_matchday, team_id, match_type=Types.BOTH
+):
+    # 1. Nur Vergangene Spiele finden (frühere Saisons ODER selbe Saison mit kleinerem Spieltag)
+    past_matches = df[
+        (df["season"] < curr_season)
+        | ((df["season"] == curr_season) & (df["matchday"] < curr_matchday))
+    ].copy()
+
+    # 2. Nach dem gewünschten Type (HOME, AWAY, BOTH) filtern
     type_filtered_matches = filter_by_type(past_matches, team_id, match_type)
+
+    # 3. Chronologisch nach Saison und Spieltag sortieren und die letzten N (iterations) Spiele nehmen
     type_filtered_matches = type_filtered_matches.sort_values(
-        by="matchday", ascending=True
+        by=["season", "matchday"], ascending=True
     )
     last_x_matches = type_filtered_matches.tail(iterations)
 
+    # 4. Metriken berechnen
     total_points = compute_points(last_x_matches, team_id)
     goals_scored = compute_goals_scored(last_x_matches, team_id)
     goals_conceded = compute_goals_conceded(last_x_matches, team_id)
@@ -100,47 +111,45 @@ def compute_form(df, iterations, curr_matchday, team_id, match_type=Types.BOTH):
 
 
 def build_full_featured_dataframe(df, iterations=5):
-    """Durchläuft das gesamte DataFrame und fügt für jedes Match alle Form-Features
-
-    (Home-Team & Away-Team jeweils für HOME, AWAY, BOTH) an.
-    """
+    """Durchläuft das gesamte mehrjährige DataFrame und fügt für jedes Match alle Form-Features an."""
     featured_rows = []
 
-    # Chronologisch nach Spieltag sortieren
-    df = df.sort_values(by="matchday", ascending=True).reset_index(drop=True)
+    # Chronologisch nach Saison UND Spieltag sortieren
+    df = df.sort_values(by=["season", "matchday"], ascending=True).reset_index(
+        drop=True
+    )
 
     for idx, row in df.iterrows():
+        curr_season = row["season"]
         curr_matchday = row["matchday"]
         home_id = row["home_team_id"]
         away_id = row["away_team_id"]
 
-        # Kopie der ursprünglichen Zeile als Dictionary
         row_dict = row.to_dict()
 
-        # 1. Form-Analysen für Heim-Team (Gesamt, Nur Heim, Nur Auswärts)
+        # 1. Form-Analysen für Heim-Team (jetzt mit curr_season)
         home_both = compute_form(
-            df, iterations, curr_matchday, home_id, Types.BOTH
+            df, iterations, curr_season, curr_matchday, home_id, Types.BOTH
         )
         home_home = compute_form(
-            df, iterations, curr_matchday, home_id, Types.HOME
+            df, iterations, curr_season, curr_matchday, home_id, Types.HOME
         )
         home_away = compute_form(
-            df, iterations, curr_matchday, home_id, Types.AWAY
+            df, iterations, curr_season, curr_matchday, home_id, Types.AWAY
         )
 
-        # 2. Form-Analysen für Auswärts-Team (Gesamt, Nur Heim, Nur Auswärts)
+        # 2. Form-Analysen für Auswärts-Team (jetzt mit curr_season)
         away_both = compute_form(
-            df, iterations, curr_matchday, away_id, Types.BOTH
+            df, iterations, curr_season, curr_matchday, away_id, Types.BOTH
         )
         away_home = compute_form(
-            df, iterations, curr_matchday, away_id, Types.HOME
+            df, iterations, curr_season, curr_matchday, away_id, Types.HOME
         )
         away_away = compute_form(
-            df, iterations, curr_matchday, away_id, Types.AWAY
+            df, iterations, curr_season, curr_matchday, away_id, Types.AWAY
         )
 
-        # 3. Anfügen der berechneten Features mit klaren Spaltennamen
-        # --- Heimteam Features ---
+        # 3. Features anfügen
         row_dict[f"home_form_pts_both_{iterations}"] = home_both["pts"]
         row_dict[f"home_form_goals_both_{iterations}"] = home_both[
             "goals_scored"
@@ -156,7 +165,6 @@ def build_full_featured_dataframe(df, iterations=5):
 
         row_dict[f"home_form_pts_away_{iterations}"] = home_away["pts"]
 
-        # --- Auswärtsteam Features ---
         row_dict[f"away_form_pts_both_{iterations}"] = away_both["pts"]
         row_dict[f"away_form_goals_both_{iterations}"] = away_both[
             "goals_scored"
@@ -165,9 +173,7 @@ def build_full_featured_dataframe(df, iterations=5):
             "goals_conceded"
         ]
 
-        row_dict[f"away_form_pts_away_{iterations}"] = away_away[
-            "pts"
-        ]  # Wichtig: Spezifische Auswärtsform des Gastes!
+        row_dict[f"away_form_pts_away_{iterations}"] = away_away["pts"]
         row_dict[f"away_form_goals_away_{iterations}"] = away_away[
             "goals_scored"
         ]

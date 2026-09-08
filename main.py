@@ -6,16 +6,18 @@ from compute_form_features import Types, build_full_featured_dataframe
 
 def main():
     # 1. Dateipfade definieren
-    raw_data_path = (
-        r"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_2024.csv"
-    )
+
+    path = r"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_all_seasons.csv"
+
     output_path = (
         r"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_processed.csv"
     )
 
-    # 2. Basis-Daten laden
+     # 2. Basis-Daten laden
     print("Lade Rohdaten...")
-    df = pd.read_csv(raw_data_path)
+    df = pd.read_csv(path)
+
+    df = df.sort_values(["season", "matchday"]).reset_index(drop=True)
 
     # 3. Form-Features berechnen
     # Erstellt die Spalten: home_form_pts_home_5, away_form_pts_away_5, etc.

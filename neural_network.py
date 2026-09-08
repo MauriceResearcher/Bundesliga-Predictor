@@ -80,7 +80,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 # ------------------------------------------------------------------
 # 3. Modell trainieren
 # ------------------------------------------------------------------
-epochs = 150
+epochs = 1000
 batch_size = 32
 
 dataset = torch.utils.data.TensorDataset(X_train_t, y_train_t)
