@@ -1,47 +1,60 @@
 import os
 import pandas as pd
-from compute_elo import compute_elo_rating
-from compute_form_features import Types, build_full_featured_dataframe
+from feature_generation.compute_elo import compute_elo_rating
+from feature_generation.compute_form_features import (
+    build_full_featured_dataframe,
+)
 
 
 def main():
-    # 1. Dateipfade definieren
+    # 1. Konfiguration & Pfade
+    DATASET_DIR = r"D:\PycharmProjects\Bundesliga\Datasets"
+    ALL_SEASONS_PATH = os.path.join(DATASET_DIR, "bundesliga_all_seasons.csv")
+    OUTPUT_PATH = os.path.join(DATASET_DIR, "bundesliga_processed.csv")
 
-    path = r"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_all_seasons.csv"
+    # 2. Kombinierte Rohdaten aus prepare_football_data.py laden
+    print("=== 1. Lade zusammengefügte Rohdaten ===")
+    if not os.path.exists(ALL_SEASONS_PATH):
+        raise FileNotFoundError(
+            f"Datei '{ALL_SEASONS_PATH}' nicht gefunden! "
+            "Bitte zuerst 'prepare_football_data.py' ausführen."
+        )
 
-    output_path = (
-        r"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_processed.csv"
+    df_all = pd.read_csv(ALL_SEASONS_PATH)
+
+    # Sortierung zur Sicherheit nach Saison, Spieltag und Datum
+    df_all["date"] = pd.to_datetime(df_all["date"])
+    df_all = df_all.sort_values(
+        by=["season", "matchday", "date"]
+    ).reset_index(drop=True)
+
+    print(
+        f"Gesamtanzahl Spiele geladen: {len(df_all)} über Saisons {df_all['season'].min()} bis {df_all['season'].max()}"
     )
 
-     # 2. Basis-Daten laden
-    print("Lade Rohdaten...")
-    df = pd.read_csv(path)
+    # 3. Form-Features berechnen (rollierend über alle Saisons)
+    print("\n=== 2. Berechne Form-Features ===")
+    df_with_form = build_full_featured_dataframe(df_all, iterations=5)
 
-    df = df.sort_values(["season", "matchday"]).reset_index(drop=True)
-
-    # 3. Form-Features berechnen
-    # Erstellt die Spalten: home_form_pts_home_5, away_form_pts_away_5, etc.
-    print("Berechne Form-Features...")
-    df_with_form = build_full_featured_dataframe(df, iterations=5)
-
-    # 4. Elo-Ratings berechnen
-    # Greift auf 'home_form_pts_home_5' zu, um den dynamischen Heimvorteil zu ermitteln
-    print("Berechne Elo-Ratings...")
+    # 4. Elo-Ratings berechnen (inkl. Reset am Saisonübergang)
+    print("=== 3. Berechne Elo-Ratings ===")
     final_df = compute_elo_rating(
         df=df_with_form,
         initial_elo=1500,
         k_factor=20,
-        mean_reversion=0.30,  # 30% Reset am Saisonende
+        mean_reversion=0.30,  # 30% Reset am Saisonübergang
         base_ha=60,  # Basis-Heimvorteil
     )
 
-    # 5. Kontrolle der neuen Spalten
-    print("\nVerfügbare Spalten im fertigen Datensatz:")
+    # 5. Kontrolle
+    print("\n=== 4. Fertigstellung & Kontrolle ===")
+    print(f"Verarbeitete Zeilen insgesamt: {len(final_df)}")
+    print("Verfügbare Spalten im verarbeiteten Datensatz:")
     print(final_df.columns.tolist())
 
-    # 6. Verarbeiteten Datensatz speichern
-    final_df.to_csv(output_path, index=False)
-    print(f"\nErfolgreich gespeichert unter: {output_path}")
+    # 6. Finale verarbeitete Datei speichern
+    final_df.to_csv(OUTPUT_PATH, index=False)
+    print(f"\nErfolgreich gespeichert unter: {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

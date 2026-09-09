@@ -1,28 +1,3 @@
-"""
-
-compute a form analysis of teams regarding the last x matches regarding the current matchday
-
-"""
-
-"""
-for reference
-
-match_dict = {
-            "match_id": match.get("matchID"),
-            "date": match.get("matchDateTimeUTC"),
-            "season": match.get("leagueSeason"),
-            "matchday": match.get("group", {}).get("groupOrderID"),
-            "home_team_id": match.get("team1", {}).get("teamId"),
-            "home_team": match.get("team1", {}).get("teamName"),
-            "away_team_id": match.get("team2", {}).get("teamId"),
-            "away_team": match.get("team2", {}).get("teamName"),
-            "home_goals": goals_home,
-            "away_goals": goals_away,
-            "result": final_result,
-        }
-
-"""
-
 from enum import Enum
 import pandas as pd
 
@@ -52,9 +27,7 @@ def compute_goals_scored(df, team_id):
 
 def compute_goals_conceded(df, team_id):
     """Berechnet die kassierten Gegentore im bereits gefilterten DataFrame."""
-    # Wenn wir Heimteam sind, sind gegnerische Tore 'away_goals'
     home_conceded = df[df["home_team_id"] == team_id]["away_goals"].sum()
-    # Wenn wir Auswärtsteam sind, sind gegnerische Tore 'home_goals'
     away_conceded = df[df["away_team_id"] == team_id]["home_goals"].sum()
     return int(home_conceded + away_conceded)
 
@@ -78,6 +51,7 @@ def compute_points(df, team_id):
                 total_points += 1  # Remis
 
     return total_points
+
 
 def compute_form(
     df, iterations, curr_season, curr_matchday, team_id, match_type=Types.BOTH
@@ -112,14 +86,26 @@ def compute_form(
 
 def build_full_featured_dataframe(df, iterations=5):
     """Durchläuft das gesamte mehrjährige DataFrame und fügt für jedes Match alle Form-Features an."""
+    df_clean = df.copy()
+
+    # Fallback, falls 'season' in der CSV fehlt
+    if "season" not in df_clean.columns:
+        df_clean["season"] = 2025
+
+    # Datentypen für sicheres Aggregieren sicherstellen
+    numeric_cols = ["home_goals", "away_goals", "matchday", "season", "result"]
+    for col in numeric_cols:
+        if col in df_clean.columns:
+            df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
+
+    # Chronologisch nach Saison UND Matchday sortieren
+    df_clean = df_clean.sort_values(
+        by=["season", "matchday"], ascending=True
+    ).reset_index(drop=True)
+
     featured_rows = []
 
-    # Chronologisch nach Saison UND Spieltag sortieren
-    df = df.sort_values(by=["season", "matchday"], ascending=True).reset_index(
-        drop=True
-    )
-
-    for idx, row in df.iterrows():
+    for idx, row in df_clean.iterrows():
         curr_season = row["season"]
         curr_matchday = row["matchday"]
         home_id = row["home_team_id"]
@@ -127,26 +113,56 @@ def build_full_featured_dataframe(df, iterations=5):
 
         row_dict = row.to_dict()
 
-        # 1. Form-Analysen für Heim-Team (jetzt mit curr_season)
+        # 1. Form-Analysen für Heim-Team
         home_both = compute_form(
-            df, iterations, curr_season, curr_matchday, home_id, Types.BOTH
+            df_clean,
+            iterations,
+            curr_season,
+            curr_matchday,
+            home_id,
+            Types.BOTH,
         )
         home_home = compute_form(
-            df, iterations, curr_season, curr_matchday, home_id, Types.HOME
+            df_clean,
+            iterations,
+            curr_season,
+            curr_matchday,
+            home_id,
+            Types.HOME,
         )
         home_away = compute_form(
-            df, iterations, curr_season, curr_matchday, home_id, Types.AWAY
+            df_clean,
+            iterations,
+            curr_season,
+            curr_matchday,
+            home_id,
+            Types.AWAY,
         )
 
-        # 2. Form-Analysen für Auswärts-Team (jetzt mit curr_season)
+        # 2. Form-Analysen für Auswärts-Team
         away_both = compute_form(
-            df, iterations, curr_season, curr_matchday, away_id, Types.BOTH
+            df_clean,
+            iterations,
+            curr_season,
+            curr_matchday,
+            away_id,
+            Types.BOTH,
         )
         away_home = compute_form(
-            df, iterations, curr_season, curr_matchday, away_id, Types.HOME
+            df_clean,
+            iterations,
+            curr_season,
+            curr_matchday,
+            away_id,
+            Types.HOME,
         )
         away_away = compute_form(
-            df, iterations, curr_season, curr_matchday, away_id, Types.AWAY
+            df_clean,
+            iterations,
+            curr_season,
+            curr_matchday,
+            away_id,
+            Types.AWAY,
         )
 
         # 3. Features anfügen
@@ -183,11 +199,20 @@ def build_full_featured_dataframe(df, iterations=5):
     return pd.DataFrame(featured_rows)
 
 
-# Beispiel-Aufruf:
-# path = r"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_2024.csv"
-# df = pd.read_csv(path)
-# df_all_features = build_full_featured_dataframe(df, iterations=5)
-# print(df_all_features.head())
+# Anwendung:
+if __name__ == "__main__":
+
+    SEASON = 2025
+    path = rf"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_{SEASON}_cleaned.csv"
+    df = pd.read_csv(path)
+
+    df_features = build_full_featured_dataframe(df, iterations=5)
+
+    save_path = (
+        rf"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_{SEASON}_with_form.csv"
+    )
+    df_features.to_csv(save_path, index=False)
+    print(f"Datensatz mit Form-Features erfolgreich gespeichert: {save_path}")
 
 
 

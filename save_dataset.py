@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from generate_bl_dataset import create_dataframe
+from generate_datasets.generate_bl_dataset import create_dataframe
 
 # Verwende r"..." für Windows-Pfade mit Backslashes
 path = r"D:\PycharmProjects\Bundesliga\Datasets"
