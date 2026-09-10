@@ -36,3 +36,6 @@ wheels/
 # Datensätze / CSV-Dateien
 Datasets/*.csv
 
+#email stuff
+credentials.json
+token.json

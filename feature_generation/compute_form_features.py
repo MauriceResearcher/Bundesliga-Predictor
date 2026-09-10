@@ -84,6 +84,7 @@ def compute_form(
     }
 
 
+
 def build_full_featured_dataframe(df, iterations=5):
     """Durchläuft das gesamte mehrjährige DataFrame und fügt für jedes Match alle Form-Features an."""
     df_clean = df.copy()

@@ -165,25 +165,6 @@ def compute_elo_rating(
     return df_clean
 
 
-# Application Example:
-if __name__ == "__main__":
-
-    SEASON = 2025
-    # Lädt die Datei inklusive Form-Features (oder die bereinigte CSV)
-    path = rf"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_{SEASON}_with_form.csv"
-    df = pd.read_csv(path)
-
-    df_elo = compute_elo_rating(
-        df, initial_elo=1500, k_factor=20, mean_reversion=0.3
-    )
-
-    save_path = (
-        rf"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_{SEASON}_with_elo.csv"
-    )
-    df_elo.to_csv(save_path, index=False)
-    print(
-        f"Datensatz mit Elo-Ratings erfolgreich gespeichert unter:\n{save_path}"
-    )
 
 
 

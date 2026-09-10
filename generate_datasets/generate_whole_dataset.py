@@ -1,13 +1,16 @@
-import os
 import glob
-import pandas as pd
+import os
 import numpy as np
+import pandas as pd
 
 
 def parse_season_file(file_path, season_year):
     """Lädt eine Football-Data CSV und konvertiert sie in das interne Pipeline-Format."""
     try:
-        df = pd.read_csv(file_path, encoding="latin1")
+        # engine='python' und on_bad_lines='skip' fangen überflüssige Kommata am Zeilenende ab
+        df = pd.read_csv(
+            file_path, encoding="latin1", on_bad_lines="skip", engine="python"
+        )
     except Exception as e:
         print(f"Fehler beim Lesen von {file_path}: {e}")
         return None
@@ -20,14 +23,14 @@ def parse_season_file(file_path, season_year):
         )
         return None
 
-    # Nur gültige Zeilen behalten (ungespielte Spiele herausfiltern, falls vorhanden)
+    # Nur gültige Zeilen behalten
     df = df.dropna(subset=["HomeTeam", "AwayTeam"]).copy()
 
     # 1. Ergebnis-Label mappen (0: Heimsieg, 1: Remis, 2: Auswärtssieg)
     result_map = {"H": 0, "D": 1, "A": 2}
     df["result"] = df["FTR"].map(result_map)
 
-    # 2. Quoten ermitteln (Bet365 als Standard, sonst Marktdurchschnitt / Fallback)
+    # 2. Quoten ermitteln
     if "B365H" in df.columns:
         df["odds_home"] = df["B365H"]
         df["odds_draw"] = df["B365D"]
@@ -54,7 +57,6 @@ def parse_season_file(file_path, season_year):
     df = df.sort_values("date").reset_index(drop=True)
 
     # 4. Spieltag (matchday) berechnen (1 bis 34)
-    # Zählt, das wievielte Spiel jedes Team in der Saison absolviert
     team_match_count = {}
     matchday_list = []
 
@@ -65,7 +67,6 @@ def parse_season_file(file_path, season_year):
         team_match_count[h_team] = team_match_count.get(h_team, 0) + 1
         team_match_count[a_team] = team_match_count.get(a_team, 0) + 1
 
-        # Der Spieltag ist das Maximum der bisherigen Spiele der beiden Teams
         matchday_list.append(
             max(team_match_count[h_team], team_match_count[a_team])
         )
@@ -73,7 +74,7 @@ def parse_season_file(file_path, season_year):
     df["matchday"] = matchday_list
     df["season"] = season_year
 
-    # 5. Einheitliche Spaltenstruktur erstellen
+    # 5. Dein definiertes Wunscheschema
     clean_df = pd.DataFrame(
         {
             "fixture_id": [f"{season_year}_{i+1}" for i in range(len(df))],
@@ -81,9 +82,7 @@ def parse_season_file(file_path, season_year):
             "season": df["season"],
             "matchday": df["matchday"],
             "home_team": df["HomeTeam"],
-            "home_team_id": df[
-                "HomeTeam"
-            ],  # Vereinsnamen dienen als eindeutige ID
+            "home_team_id": df["HomeTeam"],
             "away_team": df["AwayTeam"],
             "away_team_id": df["AwayTeam"],
             "home_goals": df["FTHG"],
@@ -94,7 +93,6 @@ def parse_season_file(file_path, season_year):
             "odds_home": df["odds_home"],
             "odds_draw": df["odds_draw"],
             "odds_away": df["odds_away"],
-            # Erweiterte Match-Statistiken aus Football-Data (falls vorhanden)
             "home_shots": df.get("HS", np.nan),
             "away_shots": df.get("AS", np.nan),
             "home_shots_target": df.get("HST", np.nan),
@@ -107,8 +105,9 @@ def parse_season_file(file_path, season_year):
 
 def process_all_raw_files(dataset_dir):
     """Verarbeitet alle Bundesliga_raw CSVs und D1.csv chronologisch."""
+
     file_season_mapping = {
-        r"C:\Users\mauri\Downloads\D1.csv": 2026,  # Aktuelle Saison 2026/2027
+        r"C:\Users\mauri\Downloads\D1.csv": 2026,
         r"C:\Users\mauri\Downloads\Bundesliga_raw (1).csv": 2025,
         r"C:\Users\mauri\Downloads\Bundesliga_raw (2).csv": 2024,
         r"C:\Users\mauri\Downloads\Bundesliga_raw (3).csv": 2023,
@@ -139,21 +138,20 @@ def process_all_raw_files(dataset_dir):
 
     all_dfs = []
 
-    for filename, season in file_season_mapping.items():
-        file_path = os.path.join(dataset_dir, filename)
+    for file_path, season in file_season_mapping.items():
         if os.path.exists(file_path):
-            print(f"Verarbeite {filename} (Saison {season})...")
+            print(f"Verarbeite {file_path} (Saison {season})...")
             df_season = parse_season_file(file_path, season)
             if df_season is not None:
                 all_dfs.append(df_season)
         else:
-            print(f"Datei nicht gefunden: {filename}")
+            print(f"Datei nicht gefunden: {file_path}")
 
     if not all_dfs:
         print("Keine Dateien verarbeitet!")
         return
 
-    # Alle Saisons vertikal zusammenfügen
+    # Alle Saisons zusammenfügen
     combined_df = pd.concat(all_dfs, ignore_index=True)
 
     # Nach Saison, Spieltag und Datum sortieren
@@ -161,7 +159,6 @@ def process_all_raw_files(dataset_dir):
         by=["season", "matchday", "date"]
     ).reset_index(drop=True)
 
-    # Rohdaten aller Saisons speichern
     output_path = os.path.join(dataset_dir, "bundesliga_all_seasons.csv")
     combined_df.to_csv(output_path, index=False)
     print(
