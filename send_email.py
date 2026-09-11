@@ -1,46 +1,104 @@
 import ezgmail
+import pandas as pd
 
 
-def send_prediction_email(predictions_df, recipient_email):
-    """Verschickt die berechneten Tipps als strukturierte HTML-E-Mail via EZGmail."""
+def send_prediction_email(
+        predictions_df, performances_dict, recipient_email
+):
+    """Verschickt die berechneten Tipps und Validierungs-Metriken aller Modelle als strukturierte HTML-E-Mail via EZGmail."""
     if not ezgmail.LOGGED_IN:
         ezgmail.init()
 
-    matchday = predictions_df["matchday"].iloc[0]
-    subject = f"Bundesliga-Tipps für Spieltag {matchday}"
+    spieltag = predictions_df["Spieltag"].iloc[0]
+    subject = f"⚽ Bundesliga-Tipps & Analyse – Spieltag {spieltag}"
 
-    # HTML-Tabelle generieren
-    html_table = predictions_df.to_html(index=False, classes="table")
+    # Liste aller enthaltenen Modelle aus den Spalten filtern
+    model_names = [
+        col.replace("_Tipp", "")
+        for col in predictions_df.columns
+        if col.endswith("_Tipp")
+    ]
 
+    html_sections = []
+
+    for model_name in model_names:
+        # 1. Spezifische Spalten für das jeweilige Modell filtern
+        model_df = predictions_df[
+            [
+                "Heimteam",
+                "Auswärtsteam",
+                f"{model_name}_xG",
+                f"{model_name}_Tipp",
+            ]
+        ].copy()
+        model_df.columns = ["Heimteam", "Auswärtsteam", "xG (Heim : Auswärts)", "Tipp"]
+
+        # HTML-Tabelle für das Modell generieren
+        html_table = model_df.to_html(
+            index=False, classes="prediction-table", border=0
+        )
+
+        # 2. Performance-Daten extrahieren (falls im Dict vorhanden)
+        perf = performances_dict.get(model_name, {})
+        tr_acc = perf.get("train_acc", 0.0) * 100
+        val_acc = perf.get("val_acc", 0.0) * 100
+        val_mae = perf.get("val_mae", 0.0)
+
+        # HTML-Block für dieses Modell zusammensetzen
+        section_html = f"""
+        <div class="model-card">
+            <h3>🤖 Modell: {model_name.upper()}</h3>
+            {html_table}
+            <div class="metrics-box">
+                <strong>📊 Modell-Confidence & Validierung (Historische Daten):</strong><br>
+                • <b>Train Accuracy (1X2):</b> {tr_acc:.1f}%<br>
+                • <b>Validation Accuracy (1X2):</b> {val_acc:.1f}%<br>
+                • <b>Durchschnittl. Tor-Abweichung (MAE):</b> {val_mae:.2f} Tore
+            </div>
+        </div>
+        <hr class="divider">
+        """
+        html_sections.append(section_html)
+
+    # Gesamt-HTML aufbauen
     html_content = f"""
     <html>
       <head>
         <style>
-          body {{ font-family: Arial, sans-serif; }}
-          table {{ border-collapse: collapse; width: 100%; }}
-          th, td {{ border: 1px solid #dddddd; text-align: left; padding: 8px; }}
-          th {{ background-color: #4CAF50; color: white; }}
-          tr:nth-child(even) {{ background-color: #f2f2f2; }}
+          body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; color: #333; padding: 20px; }}
+          .container {{ max-width: 800px; margin: 0 auto; background: #ffffff; padding: 25px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+          h2 {{ color: #1e293b; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; }}
+          h3 {{ color: #2563eb; margin-top: 20px; margin-bottom: 10px; }}
+          .prediction-table {{ border-collapse: collapse; width: 100%; margin-bottom: 12px; font-size: 14px; }}
+          .prediction-table th, .prediction-table td {{ border: 1px solid #e2e8f0; text-align: left; padding: 10px; }}
+          .prediction-table th {{ background-color: #1e293b; color: white; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }}
+          .prediction-table tr:nth-child(even) {{ background-color: #f8fafc; }}
+          .metrics-box {{ background-color: #f1f5f9; border-left: 4px solid #3b82f6; padding: 12px; font-size: 13px; line-height: 1.6; border-radius: 0 4px 4px 0; }}
+          .divider {{ border: 0; height: 1px; background: #e2e8f0; margin: 25px 0; }}
+          .footer {{ font-size: 12px; color: #64748b; text-align: center; margin-top: 20px; }}
         </style>
       </head>
       <body>
-        <h2>Bundesliga Vorhersagen - Spieltag {matchday}</h2>
-        <p>Hier sind die aktuellen Wahrscheinlichkeiten für den kommenden Spieltag:</p>
-        {html_table}
-        <br>
-        <p><i>Automatisch generiert durch dein PyTorch Bundesliga-Modell.</i></p>
+        <div class="container">
+          <h2>Bundesliga Vorhersagen — Spieltag {spieltag}</h2>
+          <p>Hier sind die berechneten Vorhersagen (xG-Erwartungswerte und Tendenzen) deiner KI-Modelle:</p>
+
+          {"".join(html_sections)}
+
+          <div class="footer">
+            <i>Automatisch generiert durch deine Multi-Modell Bundesliga Pipeline.</i>
+          </div>
+        </div>
       </body>
     </html>
     """
 
     try:
-        # KORREKTUR: body nimmt den HTML-String auf, mimeSubtype='html' teilt ezgmail mit,
-        # dass es als HTML gerendert werden soll.
         ezgmail.send(
             recipient_email, subject, body=html_content, mimeSubtype="html"
         )
         print(
-            f"E-Mail für Spieltag {matchday} erfolgreich via Gmail API versendet!"
+            f"E-Mail für Spieltag {spieltag} erfolgreich via Gmail API versendet!"
         )
     except Exception as e:
         print(f"Fehler beim Versenden der E-Mail: {e}")

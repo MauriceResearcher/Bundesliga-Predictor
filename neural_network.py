@@ -27,6 +27,16 @@ FEATURE_COLS = [
     "away_form_goals_both_5",
     "away_form_conceded_both_5",
     "away_form_goals_away_5",
+    # Table_positions
+    "home_table_pos",
+    "away_table_pos",
+    "table_pos_diff",
+    # Head to head
+    "h2h_home_wins_5",
+    "h2h_draws_5",
+    "h2h_away_wins_5",
+    "h2h_home_goals_5",
+    "h2h_away_goals_5",
 ]
 
 

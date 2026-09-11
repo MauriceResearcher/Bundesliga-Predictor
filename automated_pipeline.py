@@ -16,7 +16,7 @@ from feature_generation.compute_form_features import (
     build_full_featured_dataframe,
 )
 from generate_datasets.generate_whole_dataset import process_all_raw_files
-from neural_network import predict_fixtures, train_and_predict
+from train_models import train_and_predict_multi_models
 from send_email import send_prediction_email
 
 load_dotenv()
@@ -186,15 +186,25 @@ def run_pipeline():
     ]
 
     # I. Modell trainieren & Vorhersage erstellen
-    predictions = predict_fixtures(train_df, predict_df)
+    print(
+        f"Trainiere Ensemble (NN, RF, XGBoost) auf {len(train_df)} absolvierten Partien..."
+    )
+    predictions, performances, _ = train_and_predict_multi_models(
+        train_df, predict_df
+    )
+
+    # Konsole-Ausgabe der Performance-Metriken (Train- & Val-Accuracy)
+    print("\n--- MODELL PERFORMANCE (HISTORISCHES VALIDATION SET) ---")
+    for m_name, perf in performances.items():
+        print(
+            f"{m_name:15} | Train Acc: {perf['train_acc'] * 100:.1f}% | Val Acc: {perf['val_acc'] * 100:.1f}% | Val MAE Tore: {perf['val_mae']:.2f}"
+        )
+
+    print("\n--- VORHERSAGEN FÜR SPIELTAG ---")
     print(predictions.to_string())
 
-    # J. Ergebnisse per E-Mail versenden
-    send_prediction_email(predictions, MAIL_ADDRESS)
-
-    # K. Verarbeitetes Gesamt-DF abspeichern
-    df_processed.to_csv(PROCESSED_DF_PATH, index=False)
-    print("Pipeline erfolgreich durchgelaufen!")
+    # J. Ergebnisse per E-Mail versenden (inkl. Performance-Daten)
+    send_prediction_email(predictions, performances, MAIL_ADDRESS)
 
 
 if __name__ == "__main__":

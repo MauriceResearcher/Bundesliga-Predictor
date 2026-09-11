@@ -7,8 +7,10 @@ requires-python = ">=3.14"
 dependencies = [
     "dotenv>=0.9.9",
     "ezgmail>=2026.4.28",
+    "matplotlib>=3.11.2",
     "pandas>=3.0.5",
     "requests>=2.34.2",
     "scikit-learn>=1.9.0",
     "torch>=2.14.0",
+    "xgboost>=3.4.1",
 ]
