@@ -21,7 +21,7 @@ HEADERS = {
     "x-rapidapi-host": "v3.football.api-sports.io",
 }
 
-OUTPUT_DIR = r"D:\PycharmProjects\Bundesliga\Datasets"
+OUTPUT_DIR = r"/Datasets"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 

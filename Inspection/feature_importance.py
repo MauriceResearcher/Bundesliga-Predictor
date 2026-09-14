@@ -1,3 +1,4 @@
+from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -6,6 +7,10 @@ from train_models import FEATURE_COLS, train_and_predict_multi_models
 
 def plot_feature_importance(model, feature_names, model_name="Random Forest"):
     """Extrahiert und visualisiert die Feature Importance von MultiOutput-Tree-Modellen."""
+    # Zielordner definieren und erstellen, falls nicht vorhanden
+    output_dir = Path("Figures")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # Bei MultiOutputRegressor nehmen wir den Durchschnitt der beiden Schätzer (Home & Away Goals)
     importances = np.mean(
         [estimator.feature_importances_ for estimator in model.estimators_],
@@ -21,19 +26,21 @@ def plot_feature_importance(model, feature_names, model_name="Random Forest"):
     plt.title(f"Feature Importance ({model_name})")
     plt.xlabel("Relative Wichtigkeit")
     plt.tight_layout()
-    plt.savefig(
-        f"feature_importance_{model_name.lower().replace(' ', '_')}.png"
-    )
+
+    # In den Figures-Ordner speichern
+    file_path = output_dir / f"feature_importance_{model_name.lower().replace(' ', '_')}.png"
+    plt.savefig(file_path)
     plt.close()
 
     print(f"\nTop 5 Features ({model_name}):")
     print(feature_imp.tail(5)[::-1])
+    print(f"Grafik gespeichert unter: {file_path.resolve()}")
 
 
 # --- Inspektion ausführen ---
 if __name__ == "__main__":
     # 1. Daten laden (dein verarbeitetes Gesamt-DF)
-    df = pd.read_csv("Datasets/bundesliga_processed.csv")
+    df = pd.read_csv("../Datasets/bundesliga_processed.csv")
 
     train_df = df[df["result"].notna()]
     predict_df = df[df["result"].isna()]  # Oder bestimmter Spieltag
@@ -43,14 +50,14 @@ if __name__ == "__main__":
         train_df, predict_df
     )
 
-    # 2. Feature Importance für Random Forest visualisieren
+    # 3. Feature Importance für Random Forest visualisieren
     plot_feature_importance(
         trained_models["Random Forest"],
         FEATURE_COLS,
         model_name="Random Forest",
     )
 
-    # 3. Feature Importance für XGBoost visualisieren
+    # 4. Feature Importance für XGBoost visualisieren
     plot_feature_importance(
         trained_models["XGBoost"], FEATURE_COLS, model_name="XGBoost"
     )

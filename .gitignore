@@ -39,3 +39,7 @@ Datasets/*.csv
 #email stuff
 credentials.json
 token.json
+
+# Erzeugte Diagramme & Ordner ignorieren
+Figures/
+*.png
