@@ -1,0 +1,37 @@
+name: Bundesliga Prediction Automation
+
+on:
+  schedule:
+    # Jeden Donnerstag um 18:00 Uhr deutscher Zeit (16:00 UTC)
+    - cron: '0 16 * * 4'
+  workflow_dispatch:
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Repository auschecken (inklusive uv.lock und pyproject.toml)
+    - name: Code aus Repository auschecken
+      uses: actions/checkout@v4
+
+    # 2. Python 3.14 mit Astral uv aufsetzen
+    - name: Set up uv & Python 3.14
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: '3.14'
+        enable-cache: true  # Beschleunigt den Workflow bei zukünftigen Durchläufen
+
+    # 3. Exakte Abhängigkeiten aus der uv.lock installieren
+    - name: Install dependencies via uv sync
+      run: |
+        uv sync --frozen
+
+    # 4. Pipeline mit der uv-Umgebung ausführen
+    - name: Bundesliga Pipeline starten
+      env:
+        GMAIL: ${{ secrets.GMAIL }}
+        BOT_GMAIL: ${{ secrets.BOT_GMAIL }}
+        GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+      run: |
+        uv run python automated_pipeline.py

@@ -6,25 +6,54 @@ Ganze pipeline: Neuen Spieltag laden, In df einfügen, alles ausrechnen, zu nn s
 
 import os
 import urllib.request
+from pathlib import Path
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-# Eigene Module importieren
 from feature_generation.compute_elo import compute_elo_rating
-from feature_generation.compute_form_features import (
-    build_full_featured_dataframe,
-)
+from feature_generation.compute_form_features import build_full_featured_dataframe
 from generate_datasets.generate_whole_dataset import process_all_raw_files
-from train_models import train_and_predict_multi_models
 from send_email import send_prediction_email
+from train_models import train_and_predict_multi_models
+
+# ... deine bisherigen Modul-Imports ...
 
 load_dotenv()
 MAIL_ADDRESS = os.getenv("GMAIL")
 
-DOWNLOAD_DIR = r"C:\Users\mauri\Downloads"
-DATASET_DIR = r"D:\PycharmProjects\Bundesliga\Datasets"
-PROCESSED_DF_PATH = os.path.join(DATASET_DIR, "bundesliga_processed.csv")
+# --- RELATIVE PFADE & ORDNERSTRUKTUR ---
+# Ermittelt das Projekt-Hauptverzeichnis (1 Ebene höher, falls dieses Skript im Hauptordner liegt)
+BASE_DIR = Path(__file__).resolve().parent
+
+# Pfade relativ zum Projektverzeichnis definieren
+DATA_DIR = BASE_DIR / "data"
+RAW_DATA_DIR = DATA_DIR / "raw"
+DATASET_DIR = DATA_DIR / "datasets"
+PROCESSED_DF_PATH = DATASET_DIR / "bundesliga_processed.csv"
+
+# Ordner automatisch erstellen, falls sie lokal oder bei GitHub Actions noch nicht existieren
+RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATASET_DIR.mkdir(parents=True, exist_ok=True)
+
+# 1. Aktuelle D1.csv herunterladen
+def download_latest_d1(target_dir: Path):
+    url = "https://www.football-data.co.uk/mmz4281/2627/D1.csv"
+    file_path = target_dir / "D1.csv"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    req = urllib.request.Request(url, headers=headers)
+
+    try:
+        with (
+            urllib.request.urlopen(req) as response,
+            open(file_path, "wb") as out_file,
+        ):
+            out_file.write(response.read())
+        print("D1.csv erfolgreich aktualisiert.")
+        return file_path
+    except Exception as e:
+        print(f"Fehler beim Download der D1.csv: {e}")
+        return None
 
 # Mapping von OpenLigaDB-Namen auf D1.csv/Standard-Namen
 TEAM_NAME_MAPPING = {
@@ -53,11 +82,10 @@ TEAM_NAME_MAPPING = {
     "SV 07 Elversberg": "Elversberg",
 }
 
-
-# 1. Aktuelle D1.csv herunterladen (für aktuelle Saison 2026)
-def download_latest_d1(target_dir):
+# 1. Aktuelle D1.csv herunterladen
+def download_latest_d1(target_dir: Path):
     url = "https://www.football-data.co.uk/mmz4281/2627/D1.csv"
-    file_path = os.path.join(target_dir, "D1.csv")
+    file_path = target_dir / "D1.csv"
     headers = {"User-Agent": "Mozilla/5.0"}
     req = urllib.request.Request(url, headers=headers)
 
@@ -111,13 +139,13 @@ def get_next_matchday_from_openliga(target_season=2026, target_matchday=None):
 # --- MAIN PIPELINE ---
 def run_pipeline():
     # A. Aktuelle D1.csv herunterladen
-    download_latest_d1(DOWNLOAD_DIR)
+    download_latest_d1(RAW_DATA_DIR)
 
     # B. Alle Rohdateien verarbeiten und zu 'bundesliga_all_seasons.csv' zusammenfügen
-    process_all_raw_files(DATASET_DIR)
+    process_all_raw_files(str(DATASET_DIR))
 
     # C. Kombiniertes Dataset laden
-    all_seasons_path = os.path.join(DATASET_DIR, "bundesliga_all_seasons.csv")
+    all_seasons_path = DATASET_DIR / "bundesliga_all_seasons.csv"
     d1_df = pd.read_csv(all_seasons_path)
 
     # Spaltennamen zur Sicherheit auf Kleinschreibung prüfen/harmonisieren
@@ -177,6 +205,11 @@ def run_pipeline():
         mean_reversion=0.3,
         base_ha=60,
     )
+
+    # Verarbeiteten DataFrame lokal als CSV speichern, damit du ihn analysieren kannst <---
+    PROCESSED_DF_PATH.parent.mkdir(parents=True, exist_ok=True)
+    df_processed.to_csv(PROCESSED_DF_PATH, index=False)
+    print(f"Verarbeiteter DataFrame erfolgreich gespeichert unter: {PROCESSED_DF_PATH}")
 
     # H. Aufteilen in Trainingsdaten und Vorhersagedaten
     train_df = df_processed[df_processed["result"].notna()]

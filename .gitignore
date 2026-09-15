@@ -35,6 +35,8 @@ wheels/
 
 # Datensätze / CSV-Dateien
 Datasets/*.csv
+data/datasets/*.csv
+data/raw/*.csv
 
 #email stuff
 credentials.json
@@ -43,3 +45,6 @@ token.json
 # Erzeugte Diagramme & Ordner ignorieren
 Figures/
 *.png
+
+# Betriebssystem-spezifische Dateien
+.DS_Store

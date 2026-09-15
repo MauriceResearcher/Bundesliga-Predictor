@@ -2,6 +2,30 @@ import glob
 import os
 import numpy as np
 import pandas as pd
+import urllib.request
+
+DOWNLOAD_DIR = r"C:\Users\mauri\Downloads"
+
+def download_D1(directory):
+    url = "https://www.football-data.co.uk/mmz4281/2627/D1.csv"
+    file_path = os.path.join(directory, "D1.csv")
+    headers = {"User-Agent": "Mozilla/5.0"}
+    req = urllib.request.Request(url, headers=headers)
+
+    try:
+        with (
+            urllib.request.urlopen(req) as response,
+            open(file_path, "wb") as out_file,
+        ):
+            out_file.write(response.read())
+        print("D1.csv erfolgreich aktualisiert.")
+        return file_path
+    except Exception as e:
+        print(f"Fehler beim Download der D1.csv: {e}")
+        return None
+
+
+download_D1(DOWNLOAD_DIR)
 
 
 def parse_season_file(file_path, season_year):
@@ -77,7 +101,7 @@ def parse_season_file(file_path, season_year):
     # 5. Dein definiertes Wunscheschema
     clean_df = pd.DataFrame(
         {
-            "fixture_id": [f"{season_year}_{i+1}" for i in range(len(df))],
+            "fixture_id": [f"{season_year}_{i + 1}" for i in range(len(df))],
             "date": df["date"],
             "season": df["season"],
             "matchday": df["matchday"],
@@ -90,81 +114,85 @@ def parse_season_file(file_path, season_year):
             "halftime_home": df.get("HTHG", np.nan),
             "halftime_away": df.get("HTAG", np.nan),
             "result": df["result"],
+
+            # Quoten (1X2 & Over/Under)
             "odds_home": df["odds_home"],
             "odds_draw": df["odds_draw"],
             "odds_away": df["odds_away"],
+            "odds_over25": df.get("Avg>2.5", np.nan),
+            "odds_under25": df.get("Avg<2.5", np.nan),
+
+            # Expected Goals (falls vorhanden)
+            "home_xg": df.get("HxG", np.nan),
+            "away_xg": df.get("AxG", np.nan),
+
+            # Match-Statistiken
             "home_shots": df.get("HS", np.nan),
             "away_shots": df.get("AS", np.nan),
             "home_shots_target": df.get("HST", np.nan),
             "away_shots_target": df.get("AST", np.nan),
+            "home_corners": df.get("HC", np.nan),
+            "away_corners": df.get("AC", np.nan),
+            "home_fouls": df.get("HF", np.nan),
+            "away_fouls": df.get("AF", np.nan),
+            "home_yellow": df.get("HY", np.nan),
+            "away_yellow": df.get("AY", np.nan),
+            "home_red": df.get("HR", np.nan),
+            "away_red": df.get("AR", np.nan),
         }
     )
 
     return clean_df
 
 
+def download_file(url, target_path):
+    """Lädt eine Datei von einer URL herunter."""
+    headers = {"User-Agent": "Mozilla/5.0"}
+    req = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(req) as response, open(target_path, "wb") as out_file:
+            out_file.write(response.read())
+        return True
+    except Exception as e:
+        print(f"Fehler beim Download von {url}: {e}")
+        return False
+
+
 def process_all_raw_files(dataset_dir):
-    """Verarbeitet alle Bundesliga_raw CSVs und D1.csv chronologisch."""
+    """Lädt die D1.csv für die Saisons 2000 bis 2026 direkt herunter und verarbeitet sie."""
+    os.makedirs(dataset_dir, exist_ok=True)
 
-    file_season_mapping = {
-        r"C:\Users\mauri\Downloads\D1.csv": 2026,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (1).csv": 2025,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (2).csv": 2024,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (3).csv": 2023,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (4).csv": 2022,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (5).csv": 2021,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (6).csv": 2020,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (7).csv": 2019,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (8).csv": 2018,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (9).csv": 2017,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (10).csv": 2016,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (11).csv": 2015,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (12).csv": 2014,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (13).csv": 2013,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (14).csv": 2012,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (15).csv": 2011,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (16).csv": 2010,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (17).csv": 2009,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (18).csv": 2008,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (19).csv": 2007,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (20).csv": 2006,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (21).csv": 2005,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (22).csv": 2004,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (23).csv": 2003,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (24).csv": 2002,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (25).csv": 2001,
-        r"C:\Users\mauri\Downloads\Bundesliga_raw (26).csv": 2000,
-    }
-
+    # Generiere URLs dynamisch: Saison 2000/01 ist '0001', 2025/26 ist '2526'
     all_dfs = []
 
-    for file_path, season in file_season_mapping.items():
-        if os.path.exists(file_path):
-            print(f"Verarbeite {file_path} (Saison {season})...")
-            df_season = parse_season_file(file_path, season)
+    for season_start in range(2000, 2027):
+        yy_start = str(season_start)[-2:]
+        yy_end = str(season_start + 1)[-2:]
+        season_code = f"{yy_start}{yy_end}"
+
+        url = f"https://www.football-data.co.uk/mmz4281/{season_code}/D1.csv"
+        temp_file = os.path.join(dataset_dir, f"D1_{season_start}.csv")
+
+        if download_file(url, temp_file):
+            print(f"Verarbeite Saison {season_start} ({season_code})...")
+            df_season = parse_season_file(temp_file, season_start)
             if df_season is not None:
                 all_dfs.append(df_season)
-        else:
-            print(f"Datei nicht gefunden: {file_path}")
+
+            # Aufräumen
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 
     if not all_dfs:
-        print("Keine Dateien verarbeitet!")
+        print("Keine Saisons verarbeitet!")
         return
 
-    # Alle Saisons zusammenfügen
     combined_df = pd.concat(all_dfs, ignore_index=True)
-
-    # Nach Saison, Spieltag und Datum sortieren
-    combined_df = combined_df.sort_values(
-        by=["season", "matchday", "date"]
-    ).reset_index(drop=True)
+    combined_df = combined_df.sort_values(by=["season", "matchday", "date"]).reset_index(drop=True)
 
     output_path = os.path.join(dataset_dir, "bundesliga_all_seasons.csv")
     combined_df.to_csv(output_path, index=False)
-    print(
-        f"\nErfolgreich {len(combined_df)} Spiele aus {len(all_dfs)} Saisons kombiniert!"
-    )
-    print(f"Gespeichert unter: {output_path}")
+    print(f"\nErfolgreich {len(combined_df)} Spiele aus {len(all_dfs)} Saisons verarbeitet!")
 
 
 if __name__ == "__main__":

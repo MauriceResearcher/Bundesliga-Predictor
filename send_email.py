@@ -1,13 +1,21 @@
-import ezgmail
+import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import pandas as pd
 
 
-def send_prediction_email(
-        predictions_df, performances_dict, recipient_email
-):
-    """Verschickt die berechneten Tipps und Validierungs-Metriken aller Modelle als strukturierte HTML-E-Mail via EZGmail."""
-    if not ezgmail.LOGGED_IN:
-        ezgmail.init()
+def send_prediction_email(predictions_df, performances_dict, recipient_email):
+    """Verschickt die berechneten Tipps und Validierungs-Metriken aller Modelle als strukturierte HTML-E-Mail via SMTP."""
+    # Zugangsdaten für den Mail-Versand aus Umgebungsvariablen laden
+    bot_email = os.getenv("BOT_GMAIL")  # Absender (Bot-Mail)
+    app_password = os.getenv("GMAIL_PASSWORD")  # Google App-Passwort
+
+    if not bot_email or not app_password:
+        print(
+            "Fehler: GMAIL oder GMAIL_PASSWORD Umgebungsvariable ist nicht gesetzt."
+        )
+        return
 
     spieltag = predictions_df["Spieltag"].iloc[0]
     subject = f"⚽ Bundesliga-Tipps & Analyse – Spieltag {spieltag}"
@@ -31,14 +39,19 @@ def send_prediction_email(
                 f"{model_name}_Tipp",
             ]
         ].copy()
-        model_df.columns = ["Heimteam", "Auswärtsteam", "xG (Heim : Auswärts)", "Tipp"]
+        model_df.columns = [
+            "Heimteam",
+            "Auswärtsteam",
+            "xG (Heim : Auswärts)",
+            "Tipp",
+        ]
 
         # HTML-Tabelle für das Modell generieren
         html_table = model_df.to_html(
             index=False, classes="prediction-table", border=0
         )
 
-        # 2. Performance-Daten extrahieren (falls im Dict vorhanden)
+        # 2. Performance-Daten extrahieren
         perf = performances_dict.get(model_name, {})
         tr_acc = perf.get("train_acc", 0.0) * 100
         val_acc = perf.get("val_acc", 0.0) * 100
@@ -93,12 +106,20 @@ def send_prediction_email(
     </html>
     """
 
+    # MIMEMultipart E-Mail Objekt zusammenbauen
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = bot_email
+    msg["To"] = recipient_email
+    msg.attach(MIMEText(html_content, "html"))
+
+    # Versenden über SSL via Gmail SMTP
     try:
-        ezgmail.send(
-            recipient_email, subject, body=html_content, mimeSubtype="html"
-        )
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(bot_email, app_password)
+            server.send_message(msg)
         print(
-            f"E-Mail für Spieltag {spieltag} erfolgreich via Gmail API versendet!"
+            f"E-Mail für Spieltag {spieltag} erfolgreich an {recipient_email} versendet!"
         )
     except Exception as e:
         print(f"Fehler beim Versenden der E-Mail: {e}")

@@ -3,7 +3,7 @@ import pandas as pd
 
 # Pfad zu deinem Datensatz
 DATASET_PATH = (
-    r"D:\PycharmProjects\Bundesliga\Datasets\bundesliga_full_dataset_2024.csv"
+    r"C:\Users\mauri\Downloads\D1.csv"
 )
 
 

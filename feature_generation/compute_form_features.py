@@ -208,8 +208,88 @@ def compute_h2h_features(df, curr_season, curr_matchday, home_id, away_id, n_mat
         f"h2h_away_goals_{n_matches}": int(away_goals),
     }
 
+def get_team_stats_last_n(df, curr_season, curr_matchday, team_id, n_matches):
+    """Hilfsfunktion: Holt die letzten n Spiele eines Teams (egal ob Heim oder Auswärts)
+
+    und berechnet die Pro-Spiel-Durchschnitte aller erweiterten Match-Statistiken.
+    """
+    # 1. Alle vergangenen Spiele filtern
+    past_matches = df[
+        (df["season"] < curr_season)
+        | ((df["season"] == curr_season) & (df["matchday"] < curr_matchday))
+    ]
+
+    # 2. Spiele finden, an denen das Team beteiligt war
+    team_matches = past_matches[
+        (past_matches["home_team_id"] == team_id)
+        | (past_matches["away_team_id"] == team_id)
+    ].copy()
+
+    # Nach Saison & Spieltag sortieren und die letzten n Spiele nehmen
+    team_matches = team_matches.sort_values(
+        by=["season", "matchday"], ascending=True
+    ).tail(n_matches)
+
+    stats = {
+        "xg": 0.0,
+        "shots": 0.0,
+        "shots_target": 0.0,
+        "corners": 0.0,
+        "fouls": 0.0,
+        "yellow": 0.0,
+        "red": 0.0,
+    }
+
+    if team_matches.empty:
+        return stats
+
+    match_count = len(team_matches)
+
+    for _, row in team_matches.iterrows():
+        is_home = row["home_team_id"] == team_id
+
+        prefix = "home_" if is_home else "away_"
+
+        stats["xg"] += row.get(f"{prefix}xg", 0) or 0
+        stats["shots"] += row.get(f"{prefix}shots", 0) or 0
+        stats["shots_target"] += row.get(f"{prefix}shots_target", 0) or 0
+        stats["corners"] += row.get(f"{prefix}corners", 0) or 0
+        stats["fouls"] += row.get(f"{prefix}fouls", 0) or 0
+        stats["yellow"] += row.get(f"{prefix}yellow", 0) or 0
+        stats["red"] += row.get(f"{prefix}red", 0) or 0
+
+    # Pro-Spiel-Durchschnitt berechnen
+    return {
+        metric: round(val / match_count, 2) for metric, val in stats.items()
+    }
+
+
+def build_full_xg_features(
+    df, curr_season, curr_matchday, home_id, away_id, n_matches=5
+):
+    """Berechnet die rollierenden Durchschnitte der letzten n Spiele für Heim- und Auswärtsteam."""
+    home_stats = get_team_stats_last_n(
+        df, curr_season, curr_matchday, home_id, n_matches
+    )
+    away_stats = get_team_stats_last_n(
+        df, curr_season, curr_matchday, away_id, n_matches
+    )
+
+    feature_dict = {}
+
+    # Heimteam Features anfügen
+    for metric, val in home_stats.items():
+        feature_dict[f"home_{metric}_last_{n_matches}"] = val
+
+    # Auswärtsteam Features anfügen
+    for metric, val in away_stats.items():
+        feature_dict[f"away_{metric}_last_{n_matches}"] = val
+
+    return feature_dict
+
+
 def build_full_featured_dataframe(df, iterations=5):
-    """Durchläuft das gesamte mehrjährige DataFrame und fügt Form-, Elo- und Tabellen-Features an."""
+    """Durchläuft das gesamte mehrjährige DataFrame und fügt Form-, Elo-, Tabellen- und allgemeine Match-Statistik-Features an."""
     df_clean = df.copy()
 
     if "season" not in df_clean.columns:
@@ -332,7 +412,7 @@ def build_full_featured_dataframe(df, iterations=5):
             "goals_scored"
         ]
 
-        # --- H2H Feature für die letzten 5 Duelle berechnen ---
+        # --- 4. H2H Feature für die letzten 5 Duelle berechnen ---
         h2h_dict = compute_h2h_features(
             df_clean,
             curr_season,
@@ -341,14 +421,22 @@ def build_full_featured_dataframe(df, iterations=5):
             away_id,
             n_matches=5,
         )
-
-        # H2H Features in row_dict mergen
         row_dict.update(h2h_dict)
+
+        # --- 5. Allgemeines xG & Match-Statistiken-Feature (Letzte N Spiele) ---
+        match_stats_dict = build_full_xg_features(
+            df_clean,
+            curr_season,
+            curr_matchday,
+            home_id,
+            away_id,
+            n_matches=iterations,
+        )
+        row_dict.update(match_stats_dict)
 
         featured_rows.append(row_dict)
 
     return pd.DataFrame(featured_rows)
-
 
 # Anwendung:
 if __name__ == "__main__":
